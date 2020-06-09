@@ -1,51 +1,43 @@
 #![windows_subsystem = "windows"]
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
+//#![allow(unused_imports)]
+//#![allow(unused_variables)]
+//#![allow(dead_code)]
 #![allow(non_snake_case)]
 extern crate winapi;
-use std::convert::AsMut;
-use std::convert::AsRef;
 use std::ffi::OsStr;
 use std::io::Error;
 use std::iter::once;
 use std::mem;
 use std::mem::{size_of, zeroed};
-use std::os::raw::{c_long, c_void};
+use std::os::raw::c_void;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr::null_mut;
 
-use self::winapi::shared::basetsd::LONG_PTR;
-use self::winapi::shared::minwindef::{
-    BOOL, HIWORD, HMODULE, LOWORD, LPARAM, LRESULT, UINT, WPARAM,
-};
-use self::winapi::shared::windef::{HBRUSH, HCURSOR, HWND};
-use self::winapi::um::errhandlingapi::GetLastError;
+//use self::winapi::shared::basetsd::LONG_PTR;
+use self::winapi::shared::minwindef::{HMODULE, LPARAM, LRESULT, UINT, WPARAM};
+use self::winapi::shared::windef::{HBRUSH, HWND};
+//use self::winapi::um::errhandlingapi::GetLastError;
 use self::winapi::um::libloaderapi::GetModuleHandleW;
 use self::winapi::um::wingdi::TextOutA;
 
 use self::winapi::um::winuser::{
     BeginPaint, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, EndPaint,
-    FillRect, GetCursor, GetMessageW, GetWindowLongPtrW, LoadCursorW, MessageBoxW, PostQuitMessage,
-    RegisterClassW, SetCursor, SetWindowLongPtrW, ShowCursor, TrackMouseEvent, TranslateMessage,
+    FillRect, GetMessageW, GetWindowLongPtrW, LoadCursorW, MessageBoxW, PostQuitMessage,
+    RegisterClassW, SetCursor, SetWindowLongPtrW, TrackMouseEvent, TranslateMessage,
 };
 use self::winapi::um::winuser::{
     COLOR_WINDOW, CREATESTRUCTW, CS_HREDRAW, CS_OWNDC, CS_VREDRAW, CW_USEDEFAULT, GWLP_USERDATA,
-    HTCLIENT, IDC_ARROW, IDOK, MB_OKCANCEL, MSG, TME_LEAVE, TRACKMOUSEEVENT, WM_CLOSE, WM_CREATE,
-    WM_DESTROY, WM_MOUSELEAVE, WM_MOUSEMOVE, WM_PAINT, WM_SETCURSOR, WM_SIZE, WNDCLASSW,
-    WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+    IDC_ARROW, IDOK, MB_OKCANCEL, MSG, TME_LEAVE, TRACKMOUSEEVENT, WM_CLOSE, WM_CREATE, WM_DESTROY,
+    WM_MOUSELEAVE, WM_MOUSEMOVE, WM_PAINT, WNDCLASSW, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
 };
 
 // ----------------------------------------------------
 
-// We have to encode text to wide format for Windows
-//#[cfg(windows)]
-fn win32_string(value: &str) -> Vec<u16> {
+fn wstr(value: &str) -> Vec<u16> {
+    //converts str to a utf-16 Vector and appends null terminator
     OsStr::new(value).encode_wide().chain(once(0)).collect()
 }
 
-// Window struct
-//#[cfg(windows)]
 struct Window {
     handle: HWND,
 }
@@ -63,14 +55,14 @@ unsafe extern "system" fn MyWindowProcW(
     match Msg {
         WM_CREATE => {
             let bw = (*(lParam as *mut CREATESTRUCTW)).lpCreateParams as *mut BobWindow;
-            let success = SetWindowLongPtrW(hWnd, GWLP_USERDATA, bw as isize);
+            SetWindowLongPtrW(hWnd, GWLP_USERDATA, bw as isize);
             0
         }
         WM_CLOSE => {
             if MessageBoxW(
                 hWnd,
-                win32_string("Really quit?").as_ptr(),
-                win32_string("Are you serious?").as_ptr(),
+                wstr("Really quit?").as_ptr(),
+                wstr("Are you serious?").as_ptr(),
                 MB_OKCANCEL,
             ) == IDOK
             {
@@ -96,11 +88,6 @@ unsafe extern "system" fn MyWindowProcW(
             EndPaint(hWnd, &mut ps);
             0
         }
-        // WM_SIZE => {
-        //     let width = LOWORD(lParam as u32);
-        //     let height = HIWORD(lParam as u32);
-        //     0
-        // }
         WM_MOUSELEAVE => {
             let bw = GetWindowLongPtrW(hWnd, GWLP_USERDATA) as *mut BobWindow;
             (*bw).inWindow = 0;
@@ -108,10 +95,13 @@ unsafe extern "system" fn MyWindowProcW(
         }
         WM_MOUSEMOVE => {
             let bw = GetWindowLongPtrW(hWnd, GWLP_USERDATA) as *mut BobWindow;
+            //only want to set cursor and mouse event once
             if (*bw).inWindow == 1 {
                 return 0;
             }
             (*bw).inWindow = 1;
+            //more info: https://www.codeproject.com/Questions/279139/Mouse-leave-message-is-not-received-when-it-leaves
+            //WM_MOUSELEAVE would not fire without this
             let mut tme: TRACKMOUSEEVENT =
                 *(mem::MaybeUninit::<TRACKMOUSEEVENT>::uninit().as_ptr() as *mut TRACKMOUSEEVENT);
             tme.hwndTrack = hWnd;
@@ -119,6 +109,11 @@ unsafe extern "system" fn MyWindowProcW(
             tme.dwHoverTime = 1;
             tme.cbSize = size_of::<TRACKMOUSEEVENT>() as u32;
             TrackMouseEvent(&mut tme as *mut _ as *mut TRACKMOUSEEVENT);
+            //Had to do this or cursor was eternal spinny on startup.
+            //If it moved out of client area to top of window it turned into arrow
+            //and stayed arrow when returned to the client area,
+            //But if moved left, right, or down out of client area and returned to client area
+            //it turned into and stayed a resize cursor.
             SetCursor(LoadCursorW(null_mut(), IDC_ARROW));
             0
         }
@@ -127,15 +122,14 @@ unsafe extern "system" fn MyWindowProcW(
 }
 
 fn create_window(hinstance: HMODULE, name: &str, title: &str) -> Result<Window, Error> {
-    let name = win32_string(name);
-    let title = win32_string(title);
+    let name = wstr(name);
+    let title = wstr(title);
+    //need to box the struct onto the heap
+    //or inWindow will always have the same value as LONG_PTR returned by GetWindowLongPtrW
     let bobbie = Box::new(BobWindow { inWindow: 0 });
 
     unsafe {
-        // Create handle instance that will call GetModuleHandleW, which grabs the instance handle of WNDCLASSW (check third parameter)
-        //let hinstance = GetModuleHandleW(null_mut());
-
-        // Create "class" for window, using WNDCLASSW struct (different from Window our struct)
+        //More info: https://docs.microsoft.com/en-us/windows/win32/learnwin32/creating-a-window
         let wnd_class = WNDCLASSW {
             style: CS_OWNDC | CS_HREDRAW | CS_VREDRAW, // Style
             lpfnWndProc: Some(MyWindowProcW), // The callbackfunction for any window event that can occur in our window!!! Here you could react to events like WM_SIZE or WM_QUIT.
@@ -166,7 +160,7 @@ fn create_window(hinstance: HMODULE, name: &str, title: &str) -> Result<Window, 
             null_mut(),    // hWndParent
             null_mut(),    // hMenu
             hinstance,     // hInstance
-            //&mut bobbie as *BobWindow as *mut c_void, // lpParam
+            //now that it's on the heap, unbox the struct into a pointer
             Box::into_raw(bobbie) as *mut BobWindow as *mut c_void,
         );
 
@@ -182,9 +176,7 @@ fn create_window(hinstance: HMODULE, name: &str, title: &str) -> Result<Window, 
 // More info: https://msdn.microsoft.com/en-us/library/windows/desktop/ms644927(v=vs.85).aspx
 fn handle_message(window: &mut Window) -> bool {
     unsafe {
-        //let mut message: MSG = mem::uninitialized();
         let message = mem::MaybeUninit::<MSG>::uninit();
-        // Get message from message queue with GetMessageW
         if GetMessageW(message.as_ptr() as *mut MSG, window.handle, 0, 0) > 0 {
             TranslateMessage(message.as_ptr() as *const MSG); // Translate message into something meaningful with TranslateMessage
             DispatchMessageW(message.as_ptr() as *const MSG); // Dispatch message with DispatchMessageW
@@ -197,7 +189,6 @@ fn handle_message(window: &mut Window) -> bool {
 }
 
 fn main() {
-    //print_message("Hello, world!").unwrap();
     show_window();
 }
 
