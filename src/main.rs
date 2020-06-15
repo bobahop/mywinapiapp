@@ -14,8 +14,8 @@ use std::os::windows::ffi::OsStrExt;
 use std::ptr::null_mut;
 
 //use self::winapi::shared::basetsd::LONG_PTR;
-use self::winapi::shared::minwindef::{HMODULE, LPARAM, LRESULT, UINT, WPARAM};
-use self::winapi::shared::windef::{HBRUSH, HWND};
+use self::winapi::shared::minwindef::{HMODULE, LOWORD, LPARAM, LRESULT, UINT, WPARAM};
+use self::winapi::shared::windef::{HBRUSH, HMENU, HWND};
 //use self::winapi::um::errhandlingapi::GetLastError;
 use self::winapi::um::libloaderapi::GetModuleHandleW;
 use self::winapi::um::wingdi::TextOutA;
@@ -26,9 +26,10 @@ use self::winapi::um::winuser::{
     RegisterClassW, SetCursor, SetWindowLongPtrW, TrackMouseEvent, TranslateMessage,
 };
 use self::winapi::um::winuser::{
-    COLOR_WINDOW, CREATESTRUCTW, CS_HREDRAW, CS_OWNDC, CS_VREDRAW, CW_USEDEFAULT, GWLP_USERDATA,
-    IDC_ARROW, IDOK, MB_OKCANCEL, MSG, TME_LEAVE, TRACKMOUSEEVENT, WM_CLOSE, WM_CREATE, WM_DESTROY,
-    WM_MOUSELEAVE, WM_MOUSEMOVE, WM_PAINT, WNDCLASSW, WS_OVERLAPPEDWINDOW, WS_VISIBLE,
+    BS_DEFPUSHBUTTON, COLOR_WINDOW, CREATESTRUCTW, CS_HREDRAW, CS_OWNDC, CS_VREDRAW, CW_USEDEFAULT,
+    GWLP_USERDATA, IDC_ARROW, IDOK, MB_OK, MB_OKCANCEL, MSG, TME_LEAVE, TRACKMOUSEEVENT, WM_CLOSE,
+    WM_COMMAND, WM_CREATE, WM_DESTROY, WM_MOUSELEAVE, WM_MOUSEMOVE, WM_PAINT, WNDCLASSW, WS_CHILD,
+    WS_OVERLAPPEDWINDOW, WS_TABSTOP, WS_VISIBLE,
 };
 
 // ----------------------------------------------------
@@ -52,10 +53,40 @@ unsafe extern "system" fn MyWindowProcW(
     wParam: WPARAM,
     lParam: LPARAM,
 ) -> LRESULT {
+    let btn1_id: HMENU = 1 as HMENU;
+    let btn2_id: HMENU = 2 as HMENU;
     match Msg {
         WM_CREATE => {
             let bw = (*(lParam as *mut CREATESTRUCTW)).lpCreateParams as *mut BobWindow;
             SetWindowLongPtrW(hWnd, GWLP_USERDATA, bw as isize);
+            CreateWindowExW(
+                0,
+                wstr("button").as_ptr(),
+                wstr("button1").as_ptr(),
+                WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+                50,
+                100,
+                100,
+                25,
+                hWnd,
+                btn1_id,
+                GetModuleHandleW(null_mut()),
+                null_mut(),
+            );
+            CreateWindowExW(
+                0,
+                wstr("button").as_ptr(),
+                wstr("button2").as_ptr(),
+                WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+                250,
+                100,
+                100,
+                25,
+                hWnd,
+                btn2_id,
+                GetModuleHandleW(null_mut()),
+                null_mut(),
+            );
             0
         }
         WM_CLOSE => {
@@ -67,6 +98,28 @@ unsafe extern "system" fn MyWindowProcW(
             ) == IDOK
             {
                 DestroyWindow(hWnd);
+            }
+            0
+        }
+        WM_COMMAND => {
+            match LOWORD(wParam as u32) as u32 {
+                1 => {
+                    MessageBoxW(
+                        hWnd,
+                        wstr("You touched me!").as_ptr(),
+                        wstr("Clicked button 1!").as_ptr(),
+                        MB_OK,
+                    );
+                }
+                2 => {
+                    MessageBoxW(
+                        hWnd,
+                        wstr("You touched me!").as_ptr(),
+                        wstr("Clicked button2!").as_ptr(),
+                        MB_OK,
+                    );
+                }
+                _ => {}
             }
             0
         }
