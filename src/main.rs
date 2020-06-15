@@ -47,46 +47,54 @@ struct BobWindow {
     inWindow: isize,
 }
 
+enum BtnId {
+    Btn1 = 1,
+    Btn2 = 2,
+}
+impl BtnId {
+    fn from_u32(value: u32) -> BtnId {
+        match value {
+            1 => BtnId::Btn1,
+            2 => BtnId::Btn2,
+            _ => panic!("Unknown value {}", value),
+        }
+    }
+}
+
+fn btn1_click(hWnd: HWND) {
+    unsafe {
+        MessageBoxW(
+            hWnd,
+            wstr("You touched me!").as_ptr(),
+            wstr("Clicked button 1!").as_ptr(),
+            MB_OK,
+        );
+    }
+}
+
+fn btn2_click(hWnd: HWND) {
+    unsafe {
+        MessageBoxW(
+            hWnd,
+            wstr("You touched me!").as_ptr(),
+            wstr("Clicked button2!").as_ptr(),
+            MB_OK,
+        );
+    }
+}
+
 unsafe extern "system" fn MyWindowProcW(
     hWnd: HWND,
     Msg: UINT,
     wParam: WPARAM,
     lParam: LPARAM,
 ) -> LRESULT {
-    let btn1_id: HMENU = 1 as HMENU;
-    let btn2_id: HMENU = 2 as HMENU;
     match Msg {
         WM_CREATE => {
             let bw = (*(lParam as *mut CREATESTRUCTW)).lpCreateParams as *mut BobWindow;
             SetWindowLongPtrW(hWnd, GWLP_USERDATA, bw as isize);
-            CreateWindowExW(
-                0,
-                wstr("button").as_ptr(),
-                wstr("button1").as_ptr(),
-                WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-                50,
-                100,
-                100,
-                25,
-                hWnd,
-                btn1_id,
-                GetModuleHandleW(null_mut()),
-                null_mut(),
-            );
-            CreateWindowExW(
-                0,
-                wstr("button").as_ptr(),
-                wstr("button2").as_ptr(),
-                WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-                250,
-                100,
-                100,
-                25,
-                hWnd,
-                btn2_id,
-                GetModuleHandleW(null_mut()),
-                null_mut(),
-            );
+            create_button(wstr("button1"), BtnId::Btn1, 50, 100, 100, 25, hWnd);
+            create_button(wstr("button2"), BtnId::Btn2, 250, 100, 100, 25, hWnd);
             0
         }
         WM_CLOSE => {
@@ -102,24 +110,14 @@ unsafe extern "system" fn MyWindowProcW(
             0
         }
         WM_COMMAND => {
-            match LOWORD(wParam as u32) as u32 {
-                1 => {
-                    MessageBoxW(
-                        hWnd,
-                        wstr("You touched me!").as_ptr(),
-                        wstr("Clicked button 1!").as_ptr(),
-                        MB_OK,
-                    );
+            let id = BtnId::from_u32(LOWORD(wParam as u32) as u32);
+            match id {
+                BtnId::Btn1 => {
+                    btn1_click(hWnd);
                 }
-                2 => {
-                    MessageBoxW(
-                        hWnd,
-                        wstr("You touched me!").as_ptr(),
-                        wstr("Clicked button2!").as_ptr(),
-                        MB_OK,
-                    );
+                BtnId::Btn2 => {
+                    btn2_click(hWnd);
                 }
-                _ => {}
             }
             0
         }
@@ -171,6 +169,25 @@ unsafe extern "system" fn MyWindowProcW(
             0
         }
         _ => DefWindowProcW(hWnd, Msg, wParam, lParam),
+    }
+}
+
+fn create_button(btn_name: Vec<u16>, id: BtnId, x: i32, y: i32, w: i32, h: i32, parent: HWND) {
+    unsafe {
+        CreateWindowExW(
+            0,
+            wstr("button").as_ptr(),
+            btn_name.as_ptr(),
+            WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+            x,
+            y,
+            w,
+            h,
+            parent,
+            id as u32 as HMENU,
+            GetModuleHandleW(null_mut()),
+            null_mut(),
+        );
     }
 }
 
