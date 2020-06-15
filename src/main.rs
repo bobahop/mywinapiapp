@@ -92,6 +92,15 @@ fn is_mouse_in(hWnd: HWND) -> bool {
     }
 }
 
+fn get_rect() -> RECT {
+    RECT {
+        left: 0,
+        top: 0,
+        right: 125,
+        bottom: 25,
+    }
+}
+
 unsafe extern "system" fn MyWindowProcW(
     hWnd: HWND,
     Msg: UINT,
@@ -152,12 +161,7 @@ unsafe extern "system" fn MyWindowProcW(
         WM_MOUSELEAVE => {
             let bw = GetWindowLongPtrW(hWnd, GWLP_USERDATA) as *mut BobWindow;
             (*bw).inWindow = 0;
-            let myupdate: RECT = RECT {
-                left: 0,
-                top: 0,
-                right: 250,
-                bottom: 250,
-            };
+            let myupdate = get_rect();
             InvalidateRect(hWnd, &myupdate, TRUE);
             UpdateWindow(hWnd);
             0
@@ -184,12 +188,7 @@ unsafe extern "system" fn MyWindowProcW(
             //But if moved left, right, or down out of client area and returned to client area
             //it turned into and stayed a resize cursor.
             SetCursor(LoadCursorW(null_mut(), IDC_ARROW));
-            let myupdate: RECT = RECT {
-                left: 0,
-                top: 0,
-                right: 250,
-                bottom: 250,
-            };
+            let myupdate = get_rect();
             InvalidateRect(hWnd, &myupdate, TRUE);
             UpdateWindow(hWnd);
             0
