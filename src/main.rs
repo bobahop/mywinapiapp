@@ -14,16 +14,17 @@ use std::os::windows::ffi::OsStrExt;
 use std::ptr::null_mut;
 
 //use self::winapi::shared::basetsd::LONG_PTR;
-use self::winapi::shared::minwindef::{HMODULE, LOWORD, LPARAM, LRESULT, UINT, WPARAM};
+use self::winapi::shared::minwindef::{HMODULE, LOWORD, LPARAM, LRESULT, TRUE, UINT, WPARAM};
 use self::winapi::shared::windef::{HBRUSH, HMENU, HWND};
 //use self::winapi::um::errhandlingapi::GetLastError;
+use self::winapi::shared::windef::RECT;
 use self::winapi::um::libloaderapi::GetModuleHandleW;
 use self::winapi::um::wingdi::TextOutA;
-
 use self::winapi::um::winuser::{
     BeginPaint, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, EndPaint,
-    FillRect, GetMessageW, GetWindowLongPtrW, LoadCursorW, MessageBoxW, PostQuitMessage,
-    RegisterClassW, SetCursor, SetWindowLongPtrW, TrackMouseEvent, TranslateMessage,
+    FillRect, GetMessageW, GetWindowLongPtrW, InvalidateRect, LoadCursorW, MessageBoxW,
+    PostQuitMessage, RegisterClassW, SetCursor, SetWindowLongPtrW, TrackMouseEvent,
+    TranslateMessage, UpdateWindow,
 };
 use self::winapi::um::winuser::{
     BS_DEFPUSHBUTTON, COLOR_WINDOW, CREATESTRUCTW, CS_HREDRAW, CS_OWNDC, CS_VREDRAW, CW_USEDEFAULT,
@@ -74,12 +75,20 @@ fn btn1_click(hWnd: HWND) {
 
 fn btn2_click(hWnd: HWND) {
     unsafe {
-        MessageBoxW(
-            hWnd,
-            wstr("You touched me!").as_ptr(),
-            wstr("Clicked button2!").as_ptr(),
-            MB_OK,
-        );
+        UpdateWindow(hWnd);
+    }
+}
+
+//fn open_file_dialog(hWnd: HWND) {}
+
+fn is_mouse_in(hWnd: HWND) -> bool {
+    unsafe {
+        let bw = GetWindowLongPtrW(hWnd, GWLP_USERDATA) as *mut BobWindow;
+        match (*bw).inWindow {
+            0 => false,
+            1 => true,
+            _ => false,
+        }
     }
 }
 
@@ -129,12 +138,13 @@ unsafe extern "system" fn MyWindowProcW(
             let mut ps = zeroed();
             let hdc = BeginPaint(hWnd, &mut ps);
             FillRect(hdc, &ps.rcPaint, (COLOR_WINDOW + 1) as HBRUSH);
+            let mouse_status = format!("{}{}", "mouse is in: ", is_mouse_in(hWnd));
             TextOutA(
                 hdc,
                 5,
                 5,
-                "pigby".as_ptr() as *const i8,
-                "pigby".len() as i32,
+                mouse_status.as_ptr() as *const i8,
+                mouse_status.len() as i32,
             );
             EndPaint(hWnd, &mut ps);
             0
@@ -142,14 +152,22 @@ unsafe extern "system" fn MyWindowProcW(
         WM_MOUSELEAVE => {
             let bw = GetWindowLongPtrW(hWnd, GWLP_USERDATA) as *mut BobWindow;
             (*bw).inWindow = 0;
+            let myupdate: RECT = RECT {
+                left: 0,
+                top: 0,
+                right: 250,
+                bottom: 250,
+            };
+            InvalidateRect(hWnd, &myupdate, TRUE);
+            UpdateWindow(hWnd);
             0
         }
         WM_MOUSEMOVE => {
-            let bw = GetWindowLongPtrW(hWnd, GWLP_USERDATA) as *mut BobWindow;
             //only want to set cursor and mouse event once
-            if (*bw).inWindow == 1 {
+            if is_mouse_in(hWnd) {
                 return 0;
             }
+            let bw = GetWindowLongPtrW(hWnd, GWLP_USERDATA) as *mut BobWindow;
             (*bw).inWindow = 1;
             //more info: https://www.codeproject.com/Questions/279139/Mouse-leave-message-is-not-received-when-it-leaves
             //WM_MOUSELEAVE would not fire without this
@@ -166,6 +184,14 @@ unsafe extern "system" fn MyWindowProcW(
             //But if moved left, right, or down out of client area and returned to client area
             //it turned into and stayed a resize cursor.
             SetCursor(LoadCursorW(null_mut(), IDC_ARROW));
+            let myupdate: RECT = RECT {
+                left: 0,
+                top: 0,
+                right: 250,
+                bottom: 250,
+            };
+            InvalidateRect(hWnd, &myupdate, TRUE);
+            UpdateWindow(hWnd);
             0
         }
         _ => DefWindowProcW(hWnd, Msg, wParam, lParam),
