@@ -1,7 +1,8 @@
 #![windows_subsystem = "windows"]
-//#![allow(unused_imports)]
-//#![allow(unused_variables)]
-//#![allow(dead_code)]
+// #![allow(unused_assignments)]
+// #![allow(unused_imports)]
+// #![allow(unused_variables)]
+// #![allow(dead_code)]
 #![allow(non_snake_case)]
 extern crate winapi;
 use std::ffi::OsStr;
@@ -14,11 +15,17 @@ use std::os::windows::ffi::OsStrExt;
 use std::ptr::null_mut;
 
 //use self::winapi::shared::basetsd::LONG_PTR;
+use self::winapi::shared::guiddef::{GUID, LPIID};
 use self::winapi::shared::minwindef::{HMODULE, LOWORD, LPARAM, LRESULT, TRUE, UINT, WPARAM};
-use self::winapi::shared::windef::{HBRUSH, HMENU, HWND};
+use self::winapi::shared::windef::{HBRUSH, HMENU, HWND, RECT};
+use self::winapi::shared::winerror::{E_INVALIDARG, RPC_E_CHANGED_MODE, SUCCEEDED, S_FALSE, S_OK};
 //use self::winapi::um::errhandlingapi::GetLastError;
-use self::winapi::shared::windef::RECT;
+use self::winapi::um::combaseapi::{CoCreateInstance, CoInitializeEx, IIDFromString, CLSCTX_ALL};
 use self::winapi::um::libloaderapi::GetModuleHandleW;
+use self::winapi::um::objbase::COINIT_APARTMENTTHREADED;
+use self::winapi::um::shobjidl::IFileOpenDialog;
+use self::winapi::um::shobjidl_core::CLSID_FileOpenDialog;
+//use self::winapi::um::unknwnbase::{IUnknown, LPUNKNOWN};
 use self::winapi::um::wingdi::TextOutA;
 use self::winapi::um::winuser::{
     BeginPaint, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, EndPaint,
@@ -32,8 +39,64 @@ use self::winapi::um::winuser::{
     WM_COMMAND, WM_CREATE, WM_DESTROY, WM_MOUSELEAVE, WM_MOUSEMOVE, WM_PAINT, WNDCLASSW, WS_CHILD,
     WS_OVERLAPPEDWINDOW, WS_TABSTOP, WS_VISIBLE,
 };
-
 // ----------------------------------------------------
+
+fn open_file_dialog(hWnd: HWND) {
+    unsafe {
+        let msg: &str;
+        let retval = CoInitializeEx(null_mut(), COINIT_APARTMENTTHREADED);
+        let msgother = &format!("{}{}", "return value: ", retval);
+        match retval {
+            S_OK => msg = "OK",
+            S_FALSE => msg = "False",
+            E_INVALIDARG => msg = "Invalid argument",
+            RPC_E_CHANGED_MODE => msg = "Changed modes",
+            _ => msg = msgother,
+        }
+        if retval != S_OK && retval != S_FALSE {
+            MessageBoxW(
+                hWnd,
+                wstr(msg).as_ptr(),
+                wstr("CoInitialize").as_ptr(),
+                MB_OK,
+            );
+            return;
+        }
+        let riid: LPIID = &mut zeroed::<GUID>();
+        let retval = IIDFromString(
+            wstr("{D57C7288-D4AD-4768-BE02-9D969532D960}").as_ptr(),
+            riid,
+        );
+        if retval == E_INVALIDARG {
+            //let msgother = &format!("{}{}", "return value: ", retval);
+            MessageBoxW(
+                hWnd,
+                wstr("Invalid argument").as_ptr(),
+                wstr("IIDFromString").as_ptr(),
+                MB_OK,
+            );
+            return;
+        }
+        let pFileOpen: *mut IFileOpenDialog = &mut zeroed::<IFileOpenDialog>();
+        let retval = CoCreateInstance(
+            &CLSID_FileOpenDialog,
+            null_mut(),
+            CLSCTX_ALL,
+            riid,
+            &mut (pFileOpen as *mut c_void),
+        );
+        if !SUCCEEDED(retval) {
+            let msgother = &format!("{}{}", "return value: ", retval);
+            MessageBoxW(
+                hWnd,
+                wstr(msgother).as_ptr(),
+                wstr("CoCreateInstance").as_ptr(),
+                MB_OK,
+            );
+            return;
+        }
+    }
+}
 
 fn wstr(value: &str) -> Vec<u16> {
     //converts str to a utf-16 Vector and appends null terminator
@@ -74,12 +137,8 @@ fn btn1_click(hWnd: HWND) {
 }
 
 fn btn2_click(hWnd: HWND) {
-    unsafe {
-        UpdateWindow(hWnd);
-    }
+    open_file_dialog(hWnd);
 }
-
-//fn open_file_dialog(hWnd: HWND) {}
 
 fn is_mouse_in(hWnd: HWND) -> bool {
     unsafe {

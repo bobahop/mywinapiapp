@@ -7,4 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-winapi = {version = "0.3", features = ["winuser", "std", "libloaderapi", "errhandlingapi"] }
+winapi = {version = "0.3", features = ["combaseapi", "errhandlingapi", "objbase", "libloaderapi",
+            "shobjidl", "shobjidl_core", "std", 
+            "unknwnbase", "winerror","winuser", "wtypesbase"] }
+            
