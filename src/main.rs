@@ -14,18 +14,15 @@ use std::os::raw::c_void;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr::null_mut;
 
-//use self::winapi::shared::basetsd::LONG_PTR;
 use self::winapi::shared::guiddef::{GUID, LPIID};
 use self::winapi::shared::minwindef::{HMODULE, LOWORD, LPARAM, LRESULT, TRUE, UINT, WPARAM};
 use self::winapi::shared::windef::{HBRUSH, HMENU, HWND, RECT};
 use self::winapi::shared::winerror::{E_INVALIDARG, RPC_E_CHANGED_MODE, SUCCEEDED, S_FALSE, S_OK};
-//use self::winapi::um::errhandlingapi::GetLastError;
 use self::winapi::um::combaseapi::{CoCreateInstance, CoInitializeEx, IIDFromString, CLSCTX_ALL};
 use self::winapi::um::libloaderapi::GetModuleHandleW;
 use self::winapi::um::objbase::COINIT_APARTMENTTHREADED;
 use self::winapi::um::shobjidl::IFileOpenDialog;
 use self::winapi::um::shobjidl_core::CLSID_FileOpenDialog;
-//use self::winapi::um::unknwnbase::{IUnknown, LPUNKNOWN};
 use self::winapi::um::wingdi::TextOutA;
 use self::winapi::um::winuser::{
     BeginPaint, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, EndPaint,
@@ -54,12 +51,7 @@ fn open_file_dialog(hWnd: HWND) {
             _ => msg = msgother,
         }
         if retval != S_OK && retval != S_FALSE {
-            MessageBoxW(
-                hWnd,
-                wstr(msg).as_ptr(),
-                wstr("CoInitialize").as_ptr(),
-                MB_OK,
-            );
+            msg_box(hWnd, msg, "CoInitialize", MB_OK);
             return;
         }
         let riid: LPIID = &mut zeroed::<GUID>();
@@ -69,12 +61,7 @@ fn open_file_dialog(hWnd: HWND) {
         );
         if retval == E_INVALIDARG {
             //let msgother = &format!("{}{}", "return value: ", retval);
-            MessageBoxW(
-                hWnd,
-                wstr("Invalid argument").as_ptr(),
-                wstr("IIDFromString").as_ptr(),
-                MB_OK,
-            );
+            msg_box(hWnd, "Invalid argument", "IIDFromString", MB_OK);
             return;
         }
         let pFileOpen: *mut IFileOpenDialog = &mut zeroed::<IFileOpenDialog>();
@@ -87,12 +74,7 @@ fn open_file_dialog(hWnd: HWND) {
         );
         if !SUCCEEDED(retval) {
             let msgother = &format!("{}{}", "return value: ", retval);
-            MessageBoxW(
-                hWnd,
-                wstr(msgother).as_ptr(),
-                wstr("CoCreateInstance").as_ptr(),
-                MB_OK,
-            );
+            msg_box(hWnd, msgother, "CoCreateInstance", MB_OK);
             return;
         }
     }
@@ -126,14 +108,7 @@ impl BtnId {
 }
 
 fn btn1_click(hWnd: HWND) {
-    unsafe {
-        MessageBoxW(
-            hWnd,
-            wstr("You touched me!").as_ptr(),
-            wstr("Clicked button 1!").as_ptr(),
-            MB_OK,
-        );
-    }
+    msg_box(hWnd, "You touched me!", "Clicked button 1!", MB_OK);
 }
 
 fn btn2_click(hWnd: HWND) {
@@ -175,13 +150,7 @@ unsafe extern "system" fn MyWindowProcW(
             0
         }
         WM_CLOSE => {
-            if MessageBoxW(
-                hWnd,
-                wstr("Really quit?").as_ptr(),
-                wstr("Are you serious?").as_ptr(),
-                MB_OKCANCEL,
-            ) == IDOK
-            {
+            if msg_box(hWnd, "Really quit?", "Are you serious?", MB_OKCANCEL) == IDOK {
                 DestroyWindow(hWnd);
             }
             0
@@ -254,6 +223,10 @@ unsafe extern "system" fn MyWindowProcW(
         }
         _ => DefWindowProcW(hWnd, Msg, wParam, lParam),
     }
+}
+
+fn msg_box(hWnd: HWND, msg: &str, title: &str, btns: UINT) -> i32 {
+    unsafe { MessageBoxW(hWnd, wstr(msg).as_ptr(), wstr(title).as_ptr(), btns) }
 }
 
 fn create_button(btn_name: Vec<u16>, id: BtnId, x: i32, y: i32, w: i32, h: i32, parent: HWND) {
