@@ -64,19 +64,20 @@ fn open_file_dialog(hWnd: HWND) {
             msg_box(hWnd, "Invalid argument", "IIDFromString", MB_OK);
             return;
         }
-        let pFileOpen: *mut IFileOpenDialog = &mut zeroed::<IFileOpenDialog>();
+        let mut pFileOpen: *mut IFileOpenDialog = &mut zeroed::<IFileOpenDialog>();
         let retval = CoCreateInstance(
             &CLSID_FileOpenDialog,
             null_mut(),
             CLSCTX_ALL,
             riid,
-            &mut (pFileOpen as *mut c_void),
+            <*mut *mut IFileOpenDialog>::cast(&mut pFileOpen),
         );
         if !SUCCEEDED(retval) {
             let msgother = &format!("{}{}", "return value: ", retval);
             msg_box(hWnd, msgother, "CoCreateInstance", MB_OK);
             return;
         }
+        (*pFileOpen).Show(hWnd);
     }
 }
 
